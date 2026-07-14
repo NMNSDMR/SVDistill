@@ -151,6 +151,24 @@ SVDResult computeSVD(Matrix A, int k){
     return {U,Sigma_res,VT};
 }
 
+Matrix compressChannel(const Matrix& A, int k) {
+    SVDResult svd = computeSVD(A, k);
+    size_t m = A.size();
+    size_t n = A[0].size();
+    
+    Matrix compressed(m, Vector(n, 0.0));
+    
+    for(size_t i = 0; i < k; i++){
+        for(size_t row = 0; row < m; row++){
+            for(size_t col = 0; col < n; col++){
+                compressed[row][col] += svd.Sigma[i] * svd.U[row][i] * svd.VT[i][col];
+            }    
+        }
+    }
+    
+    return compressed;
+}
+
 
 void start_math_test(){
     Matrix test_matr = {{1,2},{3,4}};
