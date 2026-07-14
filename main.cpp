@@ -114,4 +114,4 @@ int main(){
     print_vec(normalized_vec); 
 
     return 0;
-}
+} 
