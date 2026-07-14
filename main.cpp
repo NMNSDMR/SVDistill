@@ -102,7 +102,7 @@ SVDComponent getFirstSVDComponent(const Matrix& A, int maxIterations = 100) {
     Vector v(cols,1.0); // случайный вектор 
     v = normalize(v);
 
-    for(int i = 0; i < maxIterations; i++){
+    for(size_t i = 0; i < maxIterations; i++){
 
         Vector y = multiply(A,v); // поворачиваем матрицей А вектор v
         Vector x = multiply(transpor_A,y); // это как раз A^T * A * y. перемножение матриц усиливает растсяжение вдоль главной оси 
@@ -116,6 +116,41 @@ SVDComponent getFirstSVDComponent(const Matrix& A, int maxIterations = 100) {
 
     return {u,sigma,v};
 }
+
+struct SVDResult {
+    Matrix U;
+    Vector Sigma;
+    Matrix VT;
+};
+
+SVDResult computeSVD(Matrix A, int k){
+    size_t m = A.size();
+    size_t n = A[0].size();
+
+    Matrix U_res;
+    Vector Sigma_res;
+    Matrix V_res;
+
+    for(size_t i = 0; i < k; i++){
+        SVDComponent comp = getFirstSVDComponent(A,100);
+        
+        U_res.push_back(comp.u);
+        Sigma_res.push_back(comp.sigma);
+        V_res.push_back(comp.v);
+
+        for(size_t row = 0; row < m; j++){
+            for(size_t col = 0; col < n; k++){
+                A[row][col] -= (comp.sigma * comp.u[row] * comp.v[col]);
+            }
+        }
+    }
+    
+    Matrix U = transpose(U_res);
+    Matrix VT = V_res;
+
+    return {U,Sigma_res,VT};
+}
+
 
 void start_math_test(){
     Matrix test_matr = {{1,2},{3,4}};
@@ -179,7 +214,9 @@ void start_power_iteration_test(){
     print_matr(A_approx);
 }
 int main(){
+
     start_math_test();
-    start_power_iteration_test
+    start_power_iteration_test();
+    
     return 0;
 }
