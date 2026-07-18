@@ -2,6 +2,12 @@
 #include <vector>
 #include <cmath>
 
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h" // ЧИТАТЬ картинки
+
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include "stb_image_write.h" // ЗАПИСЫВАТЬ картинки
+
 using Vector = std::vector<double>;
 using Matrix = std::vector<Vector>;
 
@@ -138,8 +144,8 @@ SVDResult computeSVD(Matrix A, int k){
         Sigma_res.push_back(comp.sigma);
         V_res.push_back(comp.v);
 
-        for(size_t row = 0; row < m; j++){
-            for(size_t col = 0; col < n; k++){
+        for(size_t row = 0; row < m; row++){
+            for(size_t col = 0; col < n; col++){
                 A[row][col] -= (comp.sigma * comp.u[row] * comp.v[col]);
             }
         }
@@ -169,72 +175,79 @@ Matrix compressChannel(const Matrix& A, int k) {
     return compressed;
 }
 
-
-void start_math_test(){
-    Matrix test_matr = {{1,2},{3,4}};
-    Vector test_vect = {3,4};
-    std::cout << "///// Тестирование математики //////" << std::endl;
-
-    std::cout << "-> Изначальный вектор и матрица:" << std::endl;
-    std::cout << "-> Вектор: " << std::endl;
-    print_vec(test_vect);
-
-    std::cout << "-> Матрица: " << std::endl;
-    print_matr(test_matr);
-
-    std::cout << "-> Транспонированная матрица:" << std::endl;
-    Matrix trans_matr = transpose(test_matr);
-    print_matr(trans_matr);
-
-    std::cout << "-> Перемножение матрицы на вектор:" << std::endl;
-    Vector multiply_vec = multiply(test_matr,test_vect);
-    print_vec(multiply_vec);
-
-    double norm = getNorm(test_vect);
-    std::cout << "-> Норма вектора: " << norm << std::endl;
-    
-    std::cout << "-> Нормализированный вектор:" << std::endl;
-    Vector normalized_vec = normalize(test_vect);
-    print_vec(normalized_vec); 
-
-}
-
-void start_power_iteration_test(){
-    std::cout << "///// Тестирование степенного метода //////" << std::endl;
-    Matrix test_svd_matrix = {{3.0,2.0},{2.0,3.0}};
-
-    std::cout << " * Изначальная матрица:" << std::endl;
-    print_matr(test_svd_matrix);
-
-    SVDComponent comp = getFirstSVDComponent(test_svd_matrix,100);
-
-    std::cout << " * Результаты SVD для первого приближения :" << std::endl;
-    std::cout << " * Сигма (ожидаемые результаты около 5.0): " << comp.sigma << std::endl << std::endl;
-    
-    std::cout << " * Вектор U (ожидамые результаты ~0.707, ~0.707):" << std::endl;
-    print_vec(comp.u);
-    
-    std::cout << " * Вектор V (ожидаемые результаты ~0.707, ~0.707):" << std::endl;
-    print_vec(comp.v);
-
-    // начинаем пытаться восстановить матрицу
-    size_t rows = comp.u.size();
-    size_t cols = comp.v.size();
-    Matrix A_approx(rows, Vector(cols, 0.0));
-
-    for (size_t i = 0; i < rows; ++i) {
-        for (size_t j = 0; j < cols; ++j) {
-            A_approx[i][j] = comp.sigma * comp.u[i] * comp.v[j];
-        }
+unsigned char clamp(double val) { // пишем это чтобы если значение вылетело за разрешенное значение там не получился какой то цвет другой
+        if (val < 0.0) return 0;
+        if (val > 255.0) return 255;
+        return static_cast<unsigned char>(std::round(val));
     }
 
-    std::cout << "--- Восстановленная матрица (должна быть близка к оригиналу) ---" << std::endl;
-    print_matr(A_approx);
-}
+struct ImageRGB {
+    int width = 0;
+    int height = 0;
+    
+    Matrix R;
+    Matrix G;
+    Matrix B;
+
+    bool load(const std::string& filename) {
+        int channels;
+        unsigned char* data = stbi_load(filename.c_str(), &width, &height, &channels, 3);
+        
+        if (!data) {
+            std::cerr << "Не удалось загрузить картинку: " << filename << std::endl;
+            return false;
+        }
+        R = Matrix(height, Vector(width, 0.0));
+        G = Matrix(height, Vector(width, 0.0));
+        B = Matrix(height, Vector(width, 0.0));
+        
+        size_t index = 0;
+        for(size_t i = 0; i < height;i++){
+            for(size_t j = 0; j < width;j++){
+                R[i][j] = data[index++];
+                G[i][j] = data[index++];
+                B[i][j] = data[index++];
+            }
+        }
+        stbi_image_free(data); 
+        return true;
+    }
+
+    void save(const std::string& filename) {
+
+        std::vector<unsigned char> data(width * height * 3);
+        size_t index = 0;
+
+        for(size_t i = 0; i < height; i++){
+            for(size_t j = 0; j < width; j++){
+                data[index++] = clamp(R[i][j]);
+                data[index++] = clamp(G[i][j]);
+                data[index++] = clamp(B[i][j]);
+            }
+        }
+
+        stbi_write_png(filename.c_str(), width, height, 3, data.data(), width * 3);
+    }
+};
+
 int main(){
 
-    start_math_test();
-    start_power_iteration_test();
+    ImageRGB img;
+    std::string input_file = "imdir/input.jpg"; 
     
+    if (!img.load(input_file)) {
+        return -1;
+    }
+    
+    std::cout << "Размер изображения: " << img.width << "x" << img.height << std::endl;
+
+    int k = 20; // можно менять для повышения/понижения ранга
+
+    img.R = compressChannel(img.R, k);
+    img.G = compressChannel(img.G, k);
+    img.B = compressChannel(img.B, k);
+
+    std::string output_file = "imdir/output_k" + std::to_string(k) + ".png";
+    img.save(output_file);
     return 0;
 }
